@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Colorful To-Do List</title>
+    <style>
+      :root {
+        --bg-1: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        --card: #ffffff;
+        --muted: #6b7280;
+        --accent: #7c3aed;
+        --accent-2: #06b6d4;
+        --success: #10b981;
+        --danger: #ef4444;
+        --shadow: 0 8px 30px rgba(18, 18, 18, 0.08);
+        font-family: "Segoe UI", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg-1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        width: 100%;
+        max-width: 480px;
+      }
+      h1 {
+        margin: 0 0 12px;
+      }
+      .add-row {
+        display: flex;
+        gap: 10px;
+      }
+      .add-row input {
+        flex: 1;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+      }
+      .btn {
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 16px 0 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px;
+        border-radius: 8px;
+        background: #f9fafb;
+      }
+      li.completed .text {
+        text-decoration: line-through;
+        color: var(--muted);
+      }
+      .filters {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .filter {
+        border: none;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .filter.active {
+        background: var(--accent);
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>To-Do List</h1>
+      <div class="add-row">
+        <input
+          id="taskInput"
+          type="text"
+          placeholder="What will you do today?"
+        />
+        <button id="addBtn" class="btn">Add</button>
+      </div>
+      <div class="filters">
+        <button class="filter active" data-filter="all">All</button>
+        <button class="filter" data-filter="active">Active</button>
+        <button class="filter" data-filter="completed">Completed</button>
+      </div>
+      <ul id="todoList"></ul>
+      <div
+        style="display: flex; justify-content: space-between; margin-top: 12px"
+      >
+        <button
+          id="clearCompleted"
+          class="btn"
+          style="background: var(--danger)"
+        >
+          Clear Completed
+        </button>
+        <button id="exportJson" class="btn" style="background: var(--success)">
+          Export
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const STORAGE_KEY = "colorful_todos_v1";
+      let tasks = [];
+      let currentFilter = "all";
+      const taskInput = document.getElementById("taskInput");
+      const addBtn = document.getElementById("addBtn");
+      const todoList = document.getElementById("todoList");
+      const filters = document.querySelectorAll(".filter");
+      const clearCompletedBtn = document.getElementById("clearCompleted");
+      const exportBtn = document.getElementById("exportJson");
+
+      const uid = () =>
+        Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+      function loadTasks() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        tasks = raw ? JSON.parse(raw) : [];
+      }
+      function saveTasks() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      }
+      function addTask(text) {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+        tasks.unshift({ id: uid(), text: trimmed, completed: false });
+        saveTasks();
+        render();
+      }
+      function removeTask(id) {
+        tasks = tasks.filter((t) => t.id !== id);
+        saveTasks();
+        render();
+      }
+      function toggleCompleted(id) {
+        tasks = tasks.map((t) =>
+          t.id === id ? { ...t, completed: !t.completed } : t
+        );
+        saveTasks();
+        render();
+      }
+      function clearCompleted() {
+        tasks = tasks.filter((t) => !t.completed);
+        saveTasks();
+        render();
+      }
+      function exportJSON() {
+        const blob = new Blob([JSON.stringify(tasks, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "todo-export.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+      function render() {
+        let shown = tasks.slice();
+        if (currentFilter === "active")
+          shown = shown.filter((t) => !t.completed);
+        if (currentFilter === "completed")
+          shown = shown.filter((t) => t.completed);
+        todoList.innerHTML = "";
+        if (shown.length === 0) {
+          todoList.innerHTML = `<li style="justify-content:center;color:var(--muted)">No tasks yet</li>`;
+          return;
+        }
+        for (const t of shown) {
+          const li = document.createElement("li");
+          if (t.completed) li.classList.add("completed");
+          const span = document.createElement("span");
+          span.textContent = t.text;
+          span.className = "text";
+          span.addEventListener("dblclick", () => {
+            const newText = prompt("Edit task", t.text);
+            if (newText) {
+              t.text = newText;
+              saveTasks();
+              render();
+            }
+          });
+          li.appendChild(span);
+          const btns = document.createElement("div");
+          const doneBtn = document.createElement("button");
+          doneBtn.textContent = t.completed ? "Undo" : "Done";
+          doneBtn.className = "btn";
+          doneBtn.style.background = "var(--accent)";
+          doneBtn.onclick = () => toggleCompleted(t.id);
+          const delBtn = document.createElement("button");
+          delBtn.textContent = "🗑️";
+          delBtn.className = "btn";
+          delBtn.style.background = "var(--danger)";
+          delBtn.onclick = () => removeTask(t.id);
+          btns.append(doneBtn, delBtn);
+          li.appendChild(btns);
+          todoList.appendChild(li);
+        }
+      }
+      addBtn.onclick = () => {
+        addTask(taskInput.value);
+        taskInput.value = "";
+        taskInput.focus();
+      };
+      taskInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          addTask(taskInput.value);
+          taskInput.value = "";
+        }
+      });
+      filters.forEach((btn) =>
+        btn.addEventListener("click", () => {
+          filters.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          currentFilter = btn.dataset.filter;
+          render();
+        })
+      );
+      clearCompletedBtn.onclick = () => {
+        if (confirm("Clear completed tasks?")) clearCompleted();
+      };
+      exportBtn.onclick = exportJSON;
+
+      loadTasks();
+      render();
+    </script>
+  </body>
+</html>
